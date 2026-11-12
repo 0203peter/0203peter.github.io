@@ -1,4 +1,4 @@
-import { defineConfig } from 'astro/config';
+import { defineConfig, passthroughImageService } from 'astro/config';
 
 // 사이트 주소는 GitHub 저장소 이름에서 자동으로 정해집니다.
 //  - 저장소 이름이 <아이디>.github.io 이면  https://<아이디>.github.io/
@@ -14,6 +14,8 @@ export default defineConfig({
   site,
   base,
   trailingSlash: 'always',
+  // 사진을 webp로 바꾸지 않고 올린 형식(JPG/PNG) 그대로 내보냅니다. 오래된 브라우저에서도 보이게 하기 위함입니다.
+  image: { service: passthroughImageService() },
   markdown: {
     smartypants: false, // 따옴표와 말줄임표를 쓴 그대로 보여 줍니다.
     shikiConfig: { themes: { light: 'github-light', dark: 'github-dark' }, wrap: false },

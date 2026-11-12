@@ -6,7 +6,7 @@ category: "일상"
 
 인상깊게 본 영화만
 
-![](./img/img.webp)
+![](./img/img.jpg)
 
 
 <b>기생충 - 봉준호</b>   

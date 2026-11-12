@@ -1,0 +1,76 @@
+---
+// 첫 화면 맨 위의 독서 현황판. 숫자는 독서 기록 글에서 자동으로 계산됩니다.
+import { getEntry } from 'astro:content';
+import { SITE } from '../site.config';
+import { postUrl } from '../lib/posts';
+import { parseReading } from '../lib/reading';
+
+const post = await getEntry('posts', SITE.readingPostId);
+const years = post ? parseReading(post.body) : [];
+const rows = years.map((y) => {
+  const all = [...y.fiction, ...y.nonfiction];
+  return { label: y.label.replace(/\s*~\s*/, '–'), fiction: y.fiction.length, nonfiction: y.nonfiction.length, total: all.length, finished: all.filter((b) => b.finished).length };
+});
+const total = rows.reduce((s, r) => s + r.total, 0);
+const latest = rows.at(-1);
+const max = Math.max(1, ...rows.map((r) => r.total));
+// 막대 오른쪽에 합계 숫자가 들어갈 40px을 비워 두고 나머지 폭을 비율대로 나눕니다.
+const pct = (n: number) => `calc((100% - 40px) * ${(n / max).toFixed(4)})`;
+---
+{post && latest && (
+  <a class="board" href={postUrl(post.id)} aria-label={`독서 현황: ${latest.label}년 ${latest.total}권, 누적 ${total}권. 독서 기록 글로 이동`}>
+    <div class="board-head">
+      <span class="board-title">독서 현황</span>
+      <span class="board-more">독서 기록 보기 →</span>
+    </div>
+    <div class="tiles">
+      <div class="tile"><span class="num">{latest.total}</span><span class="cap">{latest.label}년에 읽은 책</span></div>
+      <div class="tile"><span class="num">{latest.finished}</span><span class="cap">그중 완독 · 미완독 {latest.total - latest.finished}</span></div>
+      <div class="tile"><span class="num">{total}</span><span class="cap">기록한 책 전체</span></div>
+    </div>
+    <div class="chart" role="img" aria-label={rows.map((r) => `${r.label}: 픽션 ${r.fiction}권, 논픽션 ${r.nonfiction}권`).join('. ')}>
+      {rows.map((r) => (
+        <div class="row">
+          <span class="y">{r.label}</span>
+          <span class="track">
+            {r.fiction > 0 && <span class="seg f" style={`width:${pct(r.fiction)}`} title={`${r.label} 픽션 ${r.fiction}권`}></span>}
+            {r.nonfiction > 0 && <span class="seg n" style={`width:${pct(r.nonfiction)}`} title={`${r.label} 논픽션 ${r.nonfiction}권`}></span>}
+            <span class="v">{r.total}</span>
+          </span>
+        </div>
+      ))}
+    </div>
+    <div class="legend">
+      <span><i class="sw f"></i>픽션</span>
+      <span><i class="sw n"></i>논픽션</span>
+      <span class="unit">단위: 권</span>
+    </div>
+  </a>
+)}
+<style>
+  .board { --s1: #2a78d6; --s2: #eb6834; display: block; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px 18px; margin: 0 0 44px; color: var(--fg); text-decoration: none; transition: border-color 0.15s; }
+  @media (prefers-color-scheme: dark) { .board { --s1: #3987e5; --s2: #d95926; } }
+  .board:hover, .board:focus-visible { border-color: var(--acc); }
+  .board-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+  .board-title { font-size: 14px; font-weight: 600; color: var(--mut); }
+  .board-more { font-size: 14px; color: var(--acc); }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+  .tile { display: flex; flex-direction: column; }
+  .num { font-size: 34px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .cap { font-size: 13px; color: var(--mut); line-height: 1.4; }
+  .chart { display: grid; gap: 7px; }
+  .row { display: grid; grid-template-columns: 82px 1fr; align-items: center; gap: 10px; }
+  .y { font-size: 13px; color: var(--mut); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .track { display: flex; align-items: center; gap: 2px; min-width: 0;  }
+  .seg { height: 14px; min-width: 3px; flex: none; }
+  .seg.f { background: var(--s1); }
+  .seg.n { background: var(--s2); }
+  .seg:nth-last-child(2) { border-radius: 0 4px 4px 0; }
+  .v { font-size: 13px; margin-left: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--fg); }
+  .legend { display: flex; gap: 16px; align-items: center; margin-top: 14px; font-size: 13px; color: var(--mut); }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+  .sw.f { background: var(--s1); }
+  .sw.n { background: var(--s2); }
+  .unit { margin-left: auto; }
+  @media (max-width: 560px) { .num { font-size: 28px; } .row { grid-template-columns: 74px 1fr; } }
+</style>
