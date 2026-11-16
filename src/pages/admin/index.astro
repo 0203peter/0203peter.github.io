@@ -5,7 +5,7 @@ import { SITE } from '../../site.config';
 const repoName = SITE.repo.split('/')[1];
 ---
 <Base title="글쓰기" noindex>
-  <div id="admin" data-repo={SITE.repo} data-branch={SITE.branch} data-base={import.meta.env.BASE_URL}>
+  <div id="admin" data-repo={SITE.repo} data-branch={SITE.branch} data-base={import.meta.env.BASE_URL} data-reading={SITE.readingPostId}>
     <section data-view="loading"><p class="hint">불러오는 중…</p></section>
 
     <section data-view="login" hidden>
@@ -62,7 +62,26 @@ const repoName = SITE.repo.split('/')[1];
         </div>
         <datalist id="cat-list"></datalist>
         <label>날짜<input id="f-date" type="text" autocomplete="off" spellcheck="false" /></label>
-        <label>본문 (마크다운)<textarea id="f-body" rows="20" spellcheck="false"></textarea></label>
+        <div class="editor">
+          <div class="tabs">
+            <button id="tab-write" type="button" aria-pressed="true">편집</button>
+            <button id="tab-preview" type="button" aria-pressed="false">미리보기</button>
+          </div>
+          <div id="write-pane">
+            <div id="toolbar" aria-label="서식">
+              <button type="button" data-tool="bold"><b>굵게</b></button>
+              <button type="button" data-tool="mark">형광펜</button>
+              <button type="button" data-tool="link">링크</button>
+              <button type="button" data-tool="heading">소제목</button>
+              <button type="button" data-tool="list">목록</button>
+              <button type="button" data-tool="code">코드</button>
+              <button type="button" data-tool="unfinished" id="tb-unfinished" hidden>미완독 표시</button>
+            </div>
+            <textarea id="f-body" rows="20" spellcheck="false" aria-label="본문 (마크다운)"></textarea>
+          </div>
+          <iframe id="preview" title="미리보기" sandbox="allow-same-origin" hidden></iframe>
+          <small>미리보기는 실제 사이트와 조금 다르게 보일 수 있습니다.</small>
+        </div>
         <div id="photo-row">
           <label class="file">사진 추가<input id="f-photos" type="file" accept="image/*" multiple /></label>
           <small>고른 사진은 커서 위치에 들어가고, 저장할 때 함께 올라갑니다. 사진 바로 아랫줄에 <code>*설명*</code>을 쓰면 캡션이 됩니다.</small>
@@ -124,5 +143,13 @@ const repoName = SITE.repo.split('/')[1];
   #admin #pending { margin: 0; padding-left: 20px; font-size: 14px; }
   #admin #pending span { color: var(--mut); }
   #admin .actions { display: flex; gap: 10px; }
+  #admin .editor { display: grid; gap: 8px; }
+  #admin .tabs { display: flex; gap: 6px; }
+  #admin .tabs button { padding: 6px 14px; font-size: 14px; border-radius: 999px; }
+  #admin .tabs button[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+  #admin #write-pane { display: grid; gap: 8px; }
+  #admin #toolbar { display: flex; flex-wrap: wrap; gap: 6px; }
+  #admin #toolbar button { padding: 5px 11px; font-size: 14px; border-radius: 8px; }
+  #admin #preview { width: 100%; min-height: 200px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 12px; color-scheme: light dark; }
   @media (prefers-color-scheme: dark) { #admin button.danger, #admin .msg[data-kind="err"] { color: #f08a7e; border-color: #f08a7e; } #admin button.danger:not([data-armed="1"]) { border-color: var(--line); } }
 </style>

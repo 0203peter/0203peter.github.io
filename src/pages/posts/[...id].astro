@@ -2,6 +2,8 @@
 import { render } from 'astro:content';
 import Base from '../../layouts/Base.astro';
 import { getPosts, postUrl, url, ymd, plainText } from '../../lib/posts';
+import { SITE } from '../../site.config';
+import { enhanceReadingHtml } from '../../lib/reading';
 export async function getStaticPaths() {
   const posts = await getPosts();
   return posts.map((post, i) => ({
@@ -12,6 +14,9 @@ export async function getStaticPaths() {
 const { post, newer, older } = Astro.props;
 const { Content } = await render(post);
 const description = plainText(post.body).slice(0, 140);
+// 독서 기록 글은 색·형광펜·권수를 자동으로 입혀서 보여 줍니다. (사진이 들어 있으면 일반 글처럼 보여 줍니다.)
+const html = post.rendered?.html;
+const reading = post.id === SITE.readingPostId && html && !html.includes('__ASTRO_IMAGE_') ? enhanceReadingHtml(html) : null;
 ---
 <Base title={post.data.title} description={description || undefined}>
   <article>
@@ -22,7 +27,7 @@ const description = plainText(post.body).slice(0, 140);
         <a href={`${url('/posts/')}?c=${encodeURIComponent(post.data.category)}`}>{post.data.category}</a>
       </div>
     </header>
-    <div class="prose"><Content /></div>
+    {reading ? <div class="prose reading" set:html={reading} /> : <div class="prose"><Content /></div>}
     {post.data.tags.length > 0 && <div class="tags">{post.data.tags.map((t) => <span>#{t}</span>)}</div>}
   </article>
   <nav class="pager">

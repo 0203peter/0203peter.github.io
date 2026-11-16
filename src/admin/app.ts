@@ -2,11 +2,14 @@
 import { decryptToken, encryptToken, isKeyFile, type KeyFile } from './crypto';
 import { nowKST, parsePost, safeImageName, serializePost, slugError, splitTags, type Meta } from './frontmatter';
 import { GitHub, GitHubError, filesOfPost, newPostDir, postFiles, type Change } from './github';
+import { marked } from 'marked';
+import { enhanceReadingHtml } from '../lib/reading';
 
 const root = document.getElementById('admin')!;
 const REPO = root.dataset.repo!;
 const BRANCH = root.dataset.branch!;
 const BASE = root.dataset.base!.replace(/\/$/, '');
+const READING_ID = root.dataset.reading ?? '';
 const KEY_PATH = 'public/admin-key.json';
 const LS_KEY = 'admin-key';
 const SS_TOKEN = 'admin-token';
@@ -187,6 +190,7 @@ async function openEditor(id: string | null) {
     f.date().value = d; f.slug().value = d.slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
     $('slug-row').hidden = false; $('photo-row').hidden = false;
     $('edit-heading').textContent = '새 글';
+    $('tb-unfinished').hidden = true; setTab('write');
     show('edit'); f.title().focus();
     return;
   }
@@ -200,6 +204,7 @@ async function openEditor(id: string | null) {
     f.date().value = meta.date; f.draft().checked = meta.draft; f.body().value = body;
     $('slug-row').hidden = true; $('photo-row').hidden = !file.endsWith('/index.md');
     $('edit-heading').textContent = '글 수정';
+    $('tb-unfinished').hidden = id !== READING_ID; setTab('write');
     show('edit');
   } catch (err) { await openList(); say('list-msg', errText(err), 'err'); }
 }
@@ -251,6 +256,71 @@ $<HTMLInputElement>('f-photos').onchange = async (e) => {
   input.value = '';
   drawPending();
 };
+
+
+// ── 서식 버튼과 미리보기 ─────────────────────────────────
+/** 선택한 글자를 앞뒤 기호로 감쌉니다. 선택이 없으면 예시 글자를 넣고 선택해 둡니다. */
+function wrapSelection(before: string, after: string, placeholder: string) {
+  const ta = f.body();
+  const a = ta.selectionStart, b = ta.selectionEnd;
+  const sel = ta.value.slice(a, b) || placeholder;
+  ta.setRangeText(before + sel + after, a, b, 'end');
+  ta.selectionStart = a + before.length; ta.selectionEnd = a + before.length + sel.length;
+  ta.focus();
+}
+/** 선택한 줄들의 맨 앞을 바꿉니다. */
+function editLines(fn: (line: string) => string) {
+  const ta = f.body();
+  const start = ta.value.lastIndexOf('\n', ta.selectionStart - 1) + 1;
+  let end = ta.value.indexOf('\n', ta.selectionEnd); if (end < 0) end = ta.value.length;
+  const out = ta.value.slice(start, end).split('\n').map(fn).join('\n');
+  ta.setRangeText(out, start, end, 'select');
+  ta.focus();
+}
+const UNFIN = '(미완독) ';
+const tools: Record<string, () => void> = {
+  bold: () => wrapSelection('**', '**', '굵은 글씨'),
+  mark: () => wrapSelection('<mark>', '</mark>', '형광펜'),
+  link: () => { const ta = f.body(); const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd) || '링크 글자'; const a = ta.selectionStart; ta.setRangeText(`[${sel}](https://)`, a, ta.selectionEnd, 'end'); ta.selectionStart = a + sel.length + 3; ta.selectionEnd = a + sel.length + 11; ta.focus(); },
+  heading: () => editLines((l) => (/^##\s/.test(l) ? l.replace(/^##\s+/, '') : `## ${l.replace(/^#+\s*/, '')}`)),
+  list: () => editLines((l) => (/^-\s/.test(l) ? l.replace(/^-\s+/, '') : l.trim() ? `- ${l}` : l)),
+  code: () => wrapSelection('```\n', '\n```', '코드'),
+  unfinished: () => editLines((l) => { if (!l.trim()) return l; const body = l.replace(/^-\s+/, ''); return body.startsWith(UNFIN) || body.startsWith('(읽는 중) ') ? `- ${body.replace(/^\((미완독|읽는 중)\)\s*/, '')}` : `- ${UNFIN}${body}`; }),
+};
+$('toolbar').onclick = (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-tool]');
+  if (b) tools[b.dataset.tool!]?.();
+};
+
+const mime: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' };
+function previewHtml(): string {
+  let html = marked.parse(f.body().value, { gfm: true, async: false }) as string;
+  if (editing && !editing.isNew && editing.id === READING_ID) html = enhanceReadingHtml(html);
+  const id = editing?.isNew ? f.slug().value.trim() : editing?.id ?? '';
+  // 사진 주소: 방금 고른 사진은 그 자리에서, 이미 올라간 사진은 저장소에서 불러옵니다.
+  html = html.replace(/(<img[^>]*\ssrc=")(?:\.\/)?img\/([^"]+)(")/g, (all, a, name, c) => {
+    const p = pending.find((x) => x.name === decodeURIComponent(name));
+    if (p) return `${a}data:${mime[p.name.split('.').pop()!.toLowerCase()] ?? 'image/jpeg'};base64,${p.base64}${c}`;
+    return `${a}https://raw.githubusercontent.com/${REPO}/${BRANCH}/${newPostDir(id).split('/').map(encodeURIComponent).join('/')}/img/${name}${c}`;
+  });
+  const css = [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')].map((l) => `<link rel="stylesheet" href="${esc(l.href)}">`).join('')
+    + [...document.querySelectorAll('style')].map((st) => `<style>${st.textContent}</style>`).join('');
+  const reading = editing && editing.id === READING_ID ? ' reading' : '';
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><base href="${esc(location.origin + BASE)}/posts/${esc(encodeURIComponent(id))}/">${css}<style>html,body{background:transparent}body{margin:0;padding:2px}a{pointer-events:none}</style></head><body><div class="prose${reading}">${html || '<p style="color:var(--mut)">본문이 비어 있습니다.</p>'}</div></body></html>`;
+}
+function setTab(tab: 'write' | 'preview') {
+  const frame = $<HTMLIFrameElement>('preview');
+  $('tab-write').setAttribute('aria-pressed', String(tab === 'write'));
+  $('tab-preview').setAttribute('aria-pressed', String(tab === 'preview'));
+  $('write-pane').hidden = tab !== 'write';
+  frame.hidden = tab !== 'preview';
+  if (tab !== 'preview') return;
+  const fit = () => { const d = frame.contentDocument; if (d?.documentElement) frame.style.height = `${Math.max(200, d.documentElement.scrollHeight + 8)}px`; };
+  frame.onload = () => { fit(); for (const img of frame.contentDocument?.images ?? []) img.addEventListener('load', fit); setTimeout(fit, 400); };
+  frame.srcdoc = previewHtml();
+}
+$('tab-write').onclick = () => { setTab('write'); f.body().focus(); };
+$('tab-preview').onclick = () => setTab('preview');
 
 $<HTMLFormElement>('edit-form').onsubmit = async (e) => {
   e.preventDefault();
