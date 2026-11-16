@@ -155,11 +155,12 @@ $('list').onclick = async (e) => {
   if (!btn) return;
   const id = btn.closest<HTMLElement>('.item')!.dataset.id!;
   if (btn.dataset.act === 'edit') return openEditor(id);
-  if (btn.dataset.armed !== '1') { // 한 번 더 눌러야 삭제
-    btn.dataset.armed = '1'; btn.textContent = '정말 삭제';
-    setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = '삭제'; } }, 4000);
-    return;
-  }
+  const item = btn.closest<HTMLElement>('.item')!;
+  if (btn.dataset.act === 'delete') return openDeleteConfirm(item, id);
+  if (btn.dataset.act === 'cancel-delete') { item.querySelector('.confirm')?.remove(); return; }
+  if (btn.dataset.act !== 'confirm-delete') return;
+  const input = item.querySelector<HTMLInputElement>('.confirm input')!;
+  if (input.value.trim() !== CONFIRM_WORD) { input.focus(); return; }
   const title = infoOf(id).title;
   await busy(btn, '삭제 중…', async () => {
     try {
@@ -171,6 +172,29 @@ $('list').onclick = async (e) => {
     } catch (err) { say('list-msg', errText(err), 'err'); }
   });
 };
+/** 삭제 확인: 입력 칸에 "삭제"를 적어야 삭제 버튼이 눌립니다. */
+const CONFIRM_WORD = '삭제';
+function openDeleteConfirm(item: HTMLElement, id: string) {
+  for (const c of document.querySelectorAll('#list .confirm')) c.remove();
+  const box = document.createElement('div');
+  box.className = 'confirm';
+  box.innerHTML = `
+    <p>"${esc(infoOf(id).title)}" 글과 사진이 모두 지워집니다. 계속하려면 아래에 <b>${CONFIRM_WORD}</b>를 입력하세요.</p>
+    <div class="confirm-row">
+      <input type="text" autocomplete="off" spellcheck="false" placeholder="${CONFIRM_WORD}" aria-label="확인용으로 ${CONFIRM_WORD} 입력" />
+      <button type="button" data-act="confirm-delete" class="danger-solid" disabled>삭제</button>
+      <button type="button" data-act="cancel-delete">취소</button>
+    </div>`;
+  item.append(box);
+  const input = box.querySelector('input')!;
+  const ok = box.querySelector<HTMLButtonElement>('[data-act="confirm-delete"]')!;
+  input.oninput = () => { ok.disabled = input.value.trim() !== CONFIRM_WORD; };
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); if (!ok.disabled) ok.click(); }
+    if (e.key === 'Escape') box.remove();
+  };
+  input.focus();
+}
 $('new-post').onclick = () => openEditor(null);
 
 // ── 글 작성·수정 ──────────────────────────────────────────
