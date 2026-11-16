@@ -1,0 +1,128 @@
+---
+// 글쓰기 페이지. 비밀번호로 로그인해 글을 쓰고, 고치고, 지웁니다.
+import Base from '../../layouts/Base.astro';
+import { SITE } from '../../site.config';
+const repoName = SITE.repo.split('/')[1];
+---
+<Base title="글쓰기" noindex>
+  <div id="admin" data-repo={SITE.repo} data-branch={SITE.branch} data-base={import.meta.env.BASE_URL}>
+    <section data-view="loading"><p class="hint">불러오는 중…</p></section>
+
+    <section data-view="login" hidden>
+      <h1>글쓰기</h1>
+      <form id="login-form" class="stack narrow">
+        <label>비밀번호<input id="login-password" type="password" autocomplete="current-password" required /></label>
+        <p id="login-msg" class="msg" hidden></p>
+        <button id="login-submit" class="primary" type="submit">로그인</button>
+        <button id="go-setup" class="link" type="button">비밀번호를 잊었거나 토큰이 만료됐다면 다시 설정</button>
+      </form>
+    </section>
+
+    <section data-view="setup" hidden>
+      <h1>글쓰기 설정</h1>
+      <p class="lead">처음 한 번만 하면 됩니다. GitHub 토큰을 비밀번호로 암호화해 보관하고, 이후에는 비밀번호만으로 로그인합니다.</p>
+      <ol class="steps">
+        <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub의 토큰 만들기 화면</a>을 엽니다 (Fine-grained token).</li>
+        <li><b>Repository access</b>에서 <b>Only select repositories</b>를 고르고 <code>{repoName}</code>만 선택합니다.</li>
+        <li><b>Permissions → Repository permissions → Contents</b>를 <b>Read and write</b>로 바꿉니다. 다른 권한은 필요 없습니다.</li>
+        <li>만료일을 정하고 토큰을 만든 뒤, 화면에 나온 토큰을 아래에 붙여 넣습니다.</li>
+      </ol>
+      <form id="setup-form" class="stack narrow">
+        <label>GitHub 토큰<input id="setup-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…" /></label>
+        <label>사용할 비밀번호 (10자 이상)<input id="setup-password" type="password" autocomplete="new-password" /></label>
+        <label>비밀번호 한 번 더<input id="setup-password2" type="password" autocomplete="new-password" /></label>
+        <label class="check"><input id="setup-share" type="checkbox" checked /><span>다른 기기에서도 이 비밀번호로 로그인하기<small>암호화된 토큰을 저장소에 올립니다. 저장소가 공개이므로 비밀번호가 짧거나 흔하면 풀릴 수 있습니다. 길고 다른 곳에 쓰지 않는 비밀번호를 정해 주세요. 끄면 이 기기에서만 로그인됩니다.</small></span></label>
+        <p id="setup-msg" class="msg" hidden></p>
+        <button id="setup-submit" class="primary" type="submit">설정 저장</button>
+        <button id="setup-cancel" class="link" type="button">취소</button>
+      </form>
+    </section>
+
+    <section data-view="list" hidden>
+      <div class="bar-top">
+        <h1>글 관리</h1>
+        <span class="spacer"></span>
+        <button id="new-post" class="primary" type="button">새 글 쓰기</button>
+      </div>
+      <p id="list-msg" class="msg" hidden></p>
+      <input id="list-q" type="search" placeholder="제목, 분류로 찾기" autocomplete="off" />
+      <p class="hint"><span id="list-count"></span></p>
+      <div id="list"></div>
+      <p class="foot"><button id="go-setup2" class="link" type="button">비밀번호·토큰 다시 설정</button> · <button id="logout" class="link" type="button">로그아웃</button></p>
+    </section>
+
+    <section data-view="edit" hidden>
+      <h1 id="edit-heading">새 글</h1>
+      <form id="edit-form" class="stack">
+        <label>제목<input id="f-title" type="text" autocomplete="off" /></label>
+        <label id="slug-row">주소<input id="f-slug" type="text" autocomplete="off" spellcheck="false" /><small>글 주소의 마지막 부분입니다 (/posts/<i>주소</i>/). 영문 소문자, 숫자, 하이픈만 쓸 수 있고 저장한 뒤에는 바꿀 수 없습니다.</small></label>
+        <div class="two">
+          <label>분류<input id="f-category" type="text" list="cat-list" autocomplete="off" placeholder="비우면 미분류" /></label>
+          <label>태그<input id="f-tags" type="text" autocomplete="off" placeholder="쉼표로 구분" /></label>
+        </div>
+        <datalist id="cat-list"></datalist>
+        <label>날짜<input id="f-date" type="text" autocomplete="off" spellcheck="false" /></label>
+        <label>본문 (마크다운)<textarea id="f-body" rows="20" spellcheck="false"></textarea></label>
+        <div id="photo-row">
+          <label class="file">사진 추가<input id="f-photos" type="file" accept="image/*" multiple /></label>
+          <small>고른 사진은 커서 위치에 들어가고, 저장할 때 함께 올라갑니다. 사진 바로 아랫줄에 <code>*설명*</code>을 쓰면 캡션이 됩니다.</small>
+          <ul id="pending"></ul>
+        </div>
+        <label class="check"><input id="f-draft" type="checkbox" /><span>사이트에서 숨기기<small>목록과 글 페이지에 나오지 않습니다. 저장소가 공개라 파일 자체는 GitHub에서 볼 수 있습니다.</small></span></label>
+        <p id="edit-msg" class="msg" hidden></p>
+        <div class="actions">
+          <button id="edit-save" class="primary" type="submit">저장</button>
+          <button id="edit-cancel" type="button">취소</button>
+        </div>
+      </form>
+    </section>
+  </div>
+</Base>
+<script>
+  import '../../admin/app.ts';
+</script>
+<style is:global>
+  #admin .stack { display: grid; gap: 16px; }
+  #admin .narrow { max-width: 420px; }
+  #admin label { display: grid; gap: 6px; font-size: 14px; color: var(--mut); }
+  #admin input[type="text"], #admin input[type="password"], #admin input[type="search"], #admin textarea {
+    width: 100%; padding: 11px 13px; font: inherit; font-size: 16px; color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 10px; outline: none;
+  }
+  #admin input:focus, #admin textarea:focus { border-color: var(--acc); }
+  #admin textarea { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 15px; line-height: 1.6; resize: vertical; min-height: 320px; }
+  #admin small { font-size: 13px; color: var(--mut); line-height: 1.5; }
+  #admin .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { #admin .two { grid-template-columns: 1fr; } }
+  #admin button { font: inherit; font-size: 15px; padding: 9px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+  #admin button:disabled { opacity: 0.6; cursor: default; }
+  #admin button.primary { background: var(--acc); border-color: var(--acc); color: var(--bg); font-weight: 600; }
+  #admin button.danger { color: #c0392b; }
+  #admin button.danger[data-armed="1"] { background: #c0392b; border-color: #c0392b; color: #fff; }
+  #admin button.link { border: 0; background: none; padding: 0; color: var(--mut); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; justify-self: start; }
+  #admin .check { grid-template-columns: auto 1fr; align-items: start; gap: 10px; color: var(--fg); font-size: 15px; }
+  #admin .check input { margin-top: 5px; width: 16px; height: 16px; }
+  #admin .check small { display: block; margin-top: 2px; }
+  #admin .msg { margin: 0; padding: 10px 14px; border-radius: 10px; font-size: 15px; background: var(--card); border: 1px solid var(--line); }
+  #admin .msg[data-kind="err"] { border-color: #c0392b; color: #c0392b; }
+  #admin .msg[data-kind="ok"] { border-color: var(--acc); }
+  #admin .hint { color: var(--mut); font-size: 14px; margin: 10px 0; }
+  #admin .steps { padding-left: 20px; margin: 0 0 28px; font-size: 15px; }
+  #admin .steps li { margin-bottom: 6px; }
+  #admin .bar-top { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  #admin .bar-top h1 { margin: 0; }
+  #admin .spacer { flex: 1; }
+  #admin .item { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  #admin .item-main { display: grid; min-width: 0; }
+  #admin .item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #admin .item-meta { font-size: 13px; color: var(--mut); }
+  #admin .item button { padding: 6px 12px; font-size: 14px; }
+  #admin .foot { margin-top: 28px; color: var(--mut); font-size: 14px; }
+  #admin .file { display: inline-grid; padding: 9px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--fg); font-size: 15px; cursor: pointer; width: fit-content; }
+  #admin .file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  #admin .file:focus-within { border-color: var(--acc); }
+  #admin #photo-row { display: grid; gap: 8px; }
+  #admin #pending { margin: 0; padding-left: 20px; font-size: 14px; }
+  #admin #pending span { color: var(--mut); }
+  #admin .actions { display: flex; gap: 10px; }
+  @media (prefers-color-scheme: dark) { #admin button.danger, #admin .msg[data-kind="err"] { color: #f08a7e; border-color: #f08a7e; } #admin button.danger:not([data-armed="1"]) { border-color: var(--line); } }
+</style>

@@ -6,6 +6,9 @@ export const SITE = {
   intro: '문제를 풀고, 책을 읽고, 달리고, 기록합니다.',
   // 첫 화면 독서 현황판이 읽어 오는 글(src/content/posts/ 아래 폴더 이름)
   readingPostId: '106',
+  // 글쓰기 페이지(/admin/)가 글을 저장하는 GitHub 저장소와 브랜치
+  repo: '0203peter/0203peter.github.io',
+  branch: 'main',
   links: [
     // { label: 'GitHub', href: 'https://github.com/아이디' },
   ] as { label: string; href: string }[],
